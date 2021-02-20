@@ -1,0 +1,62 @@
+* {
+    box-sizing: border-box;
+}
+
+html {
+    width: 550px;
+    min-height: 500px;
+    height: auto;
+    border-radius: 10px;
+}
+
+svg {
+    width: 100%;
+    height: auto;
+}
+
+#keycode_request {
+    position: absolute;
+    width: 130px;
+    height: auto;
+    text-align: center;
+    /* padding: 5px; */
+    border: 2px solid black;
+    background: #2222ee;
+    color: white;
+    font-weight: bolder;
+    font-family: sans-serif;
+    user-select: none;
+    display: none;
+    z-index: 1000;
+    /* border-radius: 8px; */ 
+}
+
+#keycode_request_hint{
+    padding: 5px;
+    background: burlywood;
+    color: black;
+}
+
+#keycode_request_reset {
+    background: rebeccapurple;
+    margin: 5px;
+    border-radius: 4px;
+    transition: filter 0.5s;
+}
+
+#keycode_request_reset:hover {
+    filter: invert(1);
+}
+
+#keycode_request > div {
+    padding: 5px;
+}
+
+#processed-joy {
+    width: 100%;
+    padding: 4px;
+}
+
+#joy {
+    filter: drop-shadow(2px 4px 6px black);
+}
