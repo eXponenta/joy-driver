@@ -9,6 +9,7 @@ class JoyServer {
 		this.heldButtons = [];
 		this.heldAxes = [];
 		this._runned = false;
+		this.activeGamepads = [];
 	}
 
 	/**
@@ -16,15 +17,21 @@ class JoyServer {
 	 * @param {Gamepad} pad 
 	 */
 	updatePad(pad, _time = 0) {
-		const buttonsProfile = this.profiles[pad.id].buttons;
-		const axesProfile = this.profiles[pad.id].axes;
+		const padProfile = this.profiles[pad.id] || this.profiles['any'];
+
+		if (!padProfile) {
+			return;
+		}
+
+		const buttonsProfile = padProfile.buttons;
+		const axesProfile = padProfile.axes;
 		const axesTreshold = this.profiles.axesThreshold || 0.7;
 		const btnLen = pad.buttons.length;
 		const axesLen = pad.axes.length;
 		const heldButtons = this.heldButtons[pad.index];
 		const heldAxes = this.heldAxes[pad.index];
 
-		for (let bIdx = 0; bIdx < btnLen; bIdx++) {
+		for (let bIdx = 0; bIdx < btnLen && buttonsProfile; bIdx++) {
 			const button = pad.buttons[bIdx];
 
 			if (typeof button === 'object' && buttonsProfile[bIdx]) {
@@ -37,15 +44,15 @@ class JoyServer {
 					} else {
 						this.firePressEvent(buttonsProfile[bIdx], from);
 					}
-				} else if(heldButtons[gIdx][bIdx]) {
-					heldButtons[gIdx][bIdx] = false;
+				} else if(heldButtons[bIdx]) {
+					heldButtons[bIdx] = false;
 					this.fireUpEvent(buttonsProfile[bIdx], from);
 				}
 			}
 		}
 
-		for (let aIdx = 0; aIdx < axesLen; aIdx ++) {
-			const value = pad.axes[i];
+		for (let aIdx = 0; aIdx < axesLen && axesProfile; aIdx ++) {
+			const value = pad.axes[aIdx];
 
 			if (typeof value !== 'number') {
 				continue;
@@ -122,8 +129,14 @@ class JoyServer {
 	 * @param {Gamepad} pad 
 	 */
 	fireUpEventDisconnect(pad) {
-		const buttonsProfile = this.profiles[pad.id].buttons;
-		const axesProfile = this.profiles[pad.id].axes;
+		const padProfile = this.profiles[pad.id] || this.profiles['any'];
+
+		if (!padProfile) {
+			return;
+		}
+
+		const buttonsProfile = padProfile.buttons;
+		const axesProfile = padProfile.axes;
 		const heldButtons = this.heldButtons[pad.index];
 		const heldAxes = this.heldAxes[pad.index];
 
@@ -159,10 +172,6 @@ class JoyServer {
 				continue;
 			}
 
-			if (!this.profiles[pad.id]) {
-				continue;
-			}
-
 			this.updatePad(pad);
 		}
 
@@ -174,6 +183,7 @@ class JoyServer {
 
 		this.heldButtons[gamepad.index] = [];
 		this.heldAxes[gamepad.index] = [];
+		this.activeGamepads[gamepad.index] = gamepad;
 
 		if (!this._runned) {
 			this._runned = true;
@@ -185,6 +195,7 @@ class JoyServer {
 		console.debug('[JoyServer]', 'Gamepad disconnected:', gamepad.id);
 
 		this.fireUpEventDisconnect(gamepad);
+		this.activeGamepads[gamepad.index] = null;
 
 		delete this.heldButtons[gamepad.index];
 		delete this.heldAxes[gamepad.index];
@@ -204,20 +215,23 @@ class JoyServer {
 	}
 
 	stop() {
-		this._runned = false;
-		
+
+		if (this._runned) {
+			this.activeGamepads.forEach((e) => e && this.fireUpEventDisconnect(e));
+		}
+
 		self.removeEventListener('gamepadconnected', this.onGamepadConnected);
 		self.removeEventListener('gamepaddisconnected', this.onGamepadDisconnected);
 
+		this.activeGamepads = [];
 		this.heldAxes = [];
 		this.heldButtons = [];
-
-		[...navigator.getGamepads()].forEach((e) => this.fireUpEventDisconnect(e));
+		this._runned = false;
 	}
 
 	changeProfile(profile = {}) {
 		// we should emit up events for old profile and apply then new
-		[...navigator.getGamepads()].forEach((e) => this.fireUpEventDisconnect(e));
+		this.activeGamepads.forEach((e) => e && this.fireUpEventDisconnect(e));
 		this.profiles = profile;
 
 		console.debug('[JoyServer]', 'Update profiles:', profile);
@@ -225,8 +239,24 @@ class JoyServer {
 }
   
 (async () =>  {
-	const config = await new Promise( res => chrome.storage.sync(res));
-	const profiles = config.profiles;
+	const config = await new Promise( res => chrome.storage.sync.get(res));
+	const profiles = config.profiles || {
+		['any']: {
+			buttons: [
+				{
+					'kind': 'key',
+					'code': 'Space',
+					'key': 'Space',
+					'keyCode': 32,
+					'which': 32,
+					'bubbles': true,
+					'cancelable': true,
+					'composed': true,	
+				}
+			]
+		}
+	};
+
 	const server = new JoyServer(profiles);
 
 	window.onunload = () => {
@@ -240,4 +270,6 @@ class JoyServer {
 
 		server.changeProfile(data['profiles'].newValue);
 	});
+
+	server.start();
 })()
