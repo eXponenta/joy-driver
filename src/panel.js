@@ -33,10 +33,9 @@ async function attachLayout(type = 'xbox', target) {
 	 */
 	const select = document.querySelector('#processed-joy');
 	const rendere = await attachLayout('xbox', document.querySelector('#joy'));
+	const profiles = await new Promise( res => chrome.storage.sync.get(res));
 
 	let lastSelectedId = localStorage.getItem('last_used_joy') || '';
-
-	console.log(rendere);
 
 	/**
 	 * 
