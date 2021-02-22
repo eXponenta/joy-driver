@@ -33,12 +33,30 @@ async function attachLayout(type = 'xbox', target) {
 	 */
 	const select = document.querySelector('#processed-joy');
 	const render = await attachLayout('xbox', document.querySelector('#joy'));
-	const config = await new Promise( res => chrome.storage.sync.get(res));
-	const profiles = config?.profiles.global;
 
-	console.log(profiles);
+	let currentNamespace = 'global';
+	let config = await new Promise( res => chrome.storage.sync.get(res));
+
+	config = config || {
+		profiles : { global : { any : {} } },
+	}
+
+	const namespace = config?.profiles;
+	const profiles = namespace[currentNamespace];
 
 	let lastSelectedId = localStorage.getItem('last_used_joy') || '';
+
+
+	const saveProfile = (profile) => {
+		if (!profile.id) {
+			return;
+		}
+
+		console.log('[JoyEditor] Safe profile:', profile);
+
+		namespace[currentNamespace][profile.id] = profile;
+		chrome.storage.sync.set(config);
+	}
 
 	/**
 	 * 
@@ -60,6 +78,11 @@ async function attachLayout(type = 'xbox', target) {
 	}
 
 	const changeLayout = () => {
+		
+		if (render.profileDirty) {
+			saveProfile (render.profile);
+		}
+
 		const pad = navigator.getGamepads()[select.selectedIndex];
 
 		if (pad) {
@@ -82,5 +105,12 @@ async function attachLayout(type = 'xbox', target) {
 		populateSelect([...navigator.getGamepads()]);
 		changeLayout();
 	});
+
+
+	self.onunload = () => {
+		if (render.profileDirty) {
+			saveProfile (render.profile);
+		}
+	}
 
 })();

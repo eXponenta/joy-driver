@@ -285,6 +285,12 @@ class JoyServer {
 	onGamepadConnected({gamepad}) {		
 		console.debug('[JoyServer]', 'Gamepad connected:', gamepad.id);
 
+		if (this.profiles[gamepad.id]) {
+			console.debug('[JoyServer]', 'Use special profile for', gamepad.id, this.profiles[gamepad.id]);
+		} else {
+			console.debug('[JoyServer]', 'No profiles, ANY used for', gamepad.id, this.profiles.any);
+		}
+
 		this.heldButtons[gamepad.index] = [];
 		this.heldAxes[gamepad.index] = [];
 		this.activeGamepads[gamepad.index] = gamepad;

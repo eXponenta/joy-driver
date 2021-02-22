@@ -198,6 +198,8 @@ export class JoyRenderer {
 		 * @type {number}
 		 */
 		this.padIndex = -1;
+
+		this.padId = '';
 		
 		/**
 		 * @type {HTMLDivElement}
@@ -214,6 +216,8 @@ export class JoyRenderer {
 		 */
 		this.activeHint = null;
 
+		this.profileDirty = false;
+		this.onProfileChanged = (_profile) => {};
 		this.profile = {};
 
 		this.update = this.update.bind(this);
@@ -302,15 +306,50 @@ export class JoyRenderer {
 		self.addEventListener('keydown', this.onKeyDown , {once: true})
 	}
 
+	updateProfile(kind, id, data) {
+		this.profile.id = this.padId;
+
+		const buttons = this.profile.buttons || (this.profile.buttons = {});
+		const axes = this.profile.axes || (this.profile.axes = {});
+
+		const r = kind === 'button' ? buttons : axes;
+
+		if (!r[id] && !data) {
+			return;
+		}
+
+		if (!data) {
+			delete r[id];
+		} else {
+			r[id] = data;
+		}
+
+		this.profileDirty = true;
+		this.onProfileChanged && this.onProfileChanged;
+	}
+
+	/**
+	 * 
+	 * @param {MouseEvent} event 
+	 */
 	onMouseClick(event) {		
 		event.stopPropagation();
 
+		const hint = this.activeHint;
+
 		if (event.target.id === 'keycode_request_reset') {
 			this.hintSelectorResult.textContent = '...';
-			this.activeHint.value = this.activeHint.default;
+			hint.value = this.activeHint.default;
+
+			this.updateProfile(hint.kind, hint.index, null);
 		} else {
 			this.hintSelectorResult.textContent = 'Mouse ' + event.button;
-			this.activeHint.value = 'Mouse ' + event.button;
+			hint.value = 'Mouse ' + event.button;
+
+			this.updateProfile(hint.kind, hint.index, {
+				kinde: 'mouse',
+				button: event.button,
+			});
 		}
 
 		setTimeout(() => {
@@ -318,14 +357,31 @@ export class JoyRenderer {
 		}, 1000);
 	}
 
-	onKeyDown({code}) {
-		this.hintSelectorResult.textContent = code;
-		this.activeHint.value = code;
+	/**
+	 * 
+	 * @param {KeyboardEvent} event 
+	 */
+	onKeyDown(event) {
+		this.hintSelectorResult.textContent = event.code;
+		this.activeHint.value = event.code;
+
+		this.updateProfile(this.activeHint.kind, this.activeHint.index, {
+			kind: 'key',
+			code: event.code,
+			key: event.key,
+			which: event.which,
+			keyCode: event.keyCode,
+		});
 
 		setTimeout(() => {
 			this.hintSelector.style.display = 'none';
 		}, 1000);
 	}
+
+	onProfileChangedFromRender(callback) {
+		this.onProfileChanged = callback;
+	}
+
 
 	updateHints() {
 		const buttons = this.profile.buttons || [];
@@ -375,7 +431,9 @@ export class JoyRenderer {
 	 */
 	bindPad(pad, profile = null) {
 		this.padIndex = pad ? pad.index : -1;
-		this.profile = profile || {};
+		this.padId = pad ? pad.id : '';
+		// strict copy profile
+		this.profile = JSON.parse(JSON.stringify(profile || {}));
 
 		if (!pad) {
 			this.reset();
@@ -383,6 +441,7 @@ export class JoyRenderer {
 			this.update();
 		}
 
+		this.profileDirty = false;
 		this.updateHints();
 	}
 
