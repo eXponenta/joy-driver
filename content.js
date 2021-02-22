@@ -1,4 +1,101 @@
+const DEFAULT_PROFILE = {
+	buttons: {
+		[0]: {
+			kind: 'key',
+			code: 'Space',
+			key: 'Space',
+			keyCode: 32,
+			which: 32,
+		},
+		[3]: {
+			kind: 'key',
+			code: 'Enter',
+			key: 'Enter',
+			keyCode: 13,
+			which: 13,
+		},
+		[2]: {
+			kind: 'key',
+			code: 'Escape',
+			key: 'Escape',
+			keyCode: 27,
+			which: 27,
+		},
+		// pad left
+		[14]: {
+			kind: 'key',
+			code: 'ArrowLeft',
+			key: 'ArrowLeft',
+			keyCode: 37,
+			which: 37,
+		},
+		// pad right
+		[15]: {
+			kind: 'key',
+			code: 'ArrowRight',
+			key: 'ArrowRight',
+			keyCode: 39,
+			which: 39,
+		},
+		// pad up
+		[12]: {
+			kind: 'key',
+			code: 'ArrowUp',
+			key: 'ArrowUp',
+			keyCode: 38,
+			which: 38,
+		},
+		// pad down
+		[13]: {
+			kind: 'key',
+			code: 'ArrowDown',
+			key: 'ArrowDown',
+			keyCode: 40,
+			which: 40,
+		},
+	},
+	axes: {
+		// left left
+		[0]: {
+			kind: 'key',
+			code: 'ArrowLeft',
+			key: 'ArrowLeft',
+			keyCode: 37,
+			which: 37,
+		},
+		// left right
+		[1]: {
+			kind: 'key',
+			code: 'ArrowRight',
+			key: 'ArrowRight',
+			keyCode: 39,
+			which: 39,
+		},
+		// left up
+		[2]: {
+			kind: 'key',
+			code: 'ArrowUp',
+			key: 'ArrowUp',
+			keyCode: 38,
+			which: 38,
+		},
+		// left down
+		[3]: {
+			kind: 'key',
+			code: 'ArrowDown',
+			key: 'ArrowDown',
+			keyCode: 40,
+			which: 40,
+		},
+	},
+	axesThreshold: 0.7
+}
+
 class JoyServer {
+	static MAIN_FIELDS = {
+		bubbles: true, cancelable: true, composed: true, view: window
+	};
+
 	constructor(profiles) {
 		this.profiles = profiles || {};
 
@@ -52,7 +149,7 @@ class JoyServer {
 		}
 
 		for (let aIdx = 0; aIdx < axesLen && axesProfile; aIdx ++) {
-			const value = pad.axes[aIdx];
+			const value = Math.round( pad.axes[aIdx] * 1000 ) / 1000;
 
 			if (typeof value !== 'number') {
 				continue;
@@ -60,33 +157,38 @@ class JoyServer {
 
 			// positive - 0 --  1, negative = -1 -- 0,
 			// stored as different records
-			const positiveProfile = axesProfile[aIdx * 2];
-			const negativeProfile = axesProfile[aIdx * 2 + 1];
-			const from = { gamepad: pad, axe: i, value };
+			const negativeId = aIdx * 2;
+			const positiveId = negativeId + 1;
+
+			const negativeProfile = axesProfile[negativeId];
+			const positiveProfile = axesProfile[positiveId];
+			const from = { gamepad: pad, axe: aIdx, value };
 
 			if (positiveProfile) {
 				if (value > axesTreshold) {
-					if (!heldAxes[aIdx * 2]) {
-						heldAxes[aIdx * 2] = true;
+					if (!heldAxes[positiveId]) {
+						heldAxes[positiveId] = true;
 						this.fireDownEvent(positiveProfile, from);
 					} else {
-						this.fireUpEvent(positiveProfile, from);	
+						this.firePressEvent(positiveProfile, from);	
 					}
-				} else if(heldAxes[aIdx * 2]) {
-					this.firePressEvent(positiveProfile, from);
+				} else if(heldAxes[positiveId]) {
+					this.fireUpEvent(positiveProfile, from);
+					heldAxes[positiveId] = false;
 				}
 			}
 
 			if (negativeProfile) {
 				if (value < -axesTreshold) {
-					if (!heldAxes[aIdx * 2 + 1]) {
-						heldAxes[aIdx * 2 + 1] = true;
-						this.fireDownEvent(positiveProfile, from);
+					if (!heldAxes[negativeId]) {
+						heldAxes[negativeId] = true;
+						this.fireDownEvent(negativeProfile, from);
 					} else {
-						this.fireUpEvent(positiveProfile, from);	
+						this.firePressEvent(negativeProfile, from);	
 					}
-				} else if(heldAxes[aIdx * 2]) {
-					this.firePressEvent(positiveProfile, from);
+				} else if(heldAxes[negativeId]) {
+					this.fireUpEvent(negativeProfile, from);
+					heldAxes[negativeId] = false;
 				}
 			}
 		}
@@ -94,11 +196,12 @@ class JoyServer {
 
 	fireEvent(kind, type, payload) {
 		let event;
+		const init = Object.assign({}, payload, JoyServer.MAIN_FIELDS);
+	
 		if (kind === 'mouse') {
-			payload.view = self;
-			event = new MouseEvent('mouse' + type, payload);
+			event = new MouseEvent('mouse' + type, init);
 		} else {
-			event = new KeyboardEvent('key' + type, payload);
+			event = new KeyboardEvent('key' + type, init);
 		}
 
 		let target = document.activeElement;
@@ -151,7 +254,7 @@ class JoyServer {
 
 		if (heldAxes && axesProfile) {
 			for(let axe in heldAxes) {
-				const profile = axesProfile[exe];
+				const profile = axesProfile[axe];
 				profile && heldAxes[axe] && this.fireUpEvent(profile, { gamepad: pad, axe, value: 0});
 				heldAxes[axe] = false;
 			}
@@ -241,23 +344,12 @@ class JoyServer {
 (async () =>  {
 	const config = await new Promise( res => chrome.storage.sync.get(res));
 	const profiles = config.profiles || {
-		['any']: {
-			buttons: [
-				{
-					'kind': 'key',
-					'code': 'Space',
-					'key': 'Space',
-					'keyCode': 32,
-					'which': 32,
-					'bubbles': true,
-					'cancelable': true,
-					'composed': true,	
-				}
-			]
+		global: {
+			any: DEFAULT_PROFILE
 		}
 	};
 
-	const server = new JoyServer(profiles);
+	const server = new JoyServer(profiles['global']);
 
 	window.onunload = () => {
 		server.stop();
