@@ -144,7 +144,18 @@ class HintBlock {
 		this.node = node;
 		this.default = node.textContent;
 
+		//hint id should be hint_button_number or hint_axes_right_number
 		// styles
+		const kind = this.kind = this.id.includes('button') ? 'button' : 'axe';
+
+		const splitted = this.id.split('_');
+		const isLeft = kind === 'axe' && this.id.includes('left');
+
+		let rawIndex = splitted[splitted.length - 1];
+		if (isNaN(rawIndex)) rawIndex = -1;
+
+		this.index = kind === 'button'|| isLeft ? rawIndex : rawIndex + 4;
+
 		this.node.style.cursor = 'pointer';
 		this.node.style.userSelect = 'none';
 
@@ -202,6 +213,8 @@ export class JoyRenderer {
 		 * @type {HintBlock}
 		 */
 		this.activeHint = null;
+
+		this.profile = {};
 
 		this.update = this.update.bind(this);
 		this.onKeyDown = this.onKeyDown.bind(this);
@@ -314,6 +327,26 @@ export class JoyRenderer {
 		}, 1000);
 	}
 
+	updateHints() {
+		const buttons = this.profile.buttons || [];
+		const axes = this.profile.axes || [];
+		const record = { axe: axes, button: buttons };
+
+		for (const hint of this.hints) {
+			const r = record[hint.kind];
+
+			if (r && r[hint.index]) {
+				const t = r[hint.index].kind;
+
+				hint.value = t === 'key' 
+					? r[hint.index].code  // for keyborad
+					: 'Mouse ' + r[hint.index].button; // for mouse
+			} else {
+				hint.value = hint.default;
+			}
+		}
+	}
+
 	update() {
 		if (this.padIndex === -1) {
 			return;
@@ -335,18 +368,22 @@ export class JoyRenderer {
 
 		requestAnimationFrame(this.update);
 	}
+
 	/**
 	 * 
 	 * @param {Gamepad} pad 
 	 */
-	bindPad(pad) {
+	bindPad(pad, profile = null) {
 		this.padIndex = pad ? pad.index : -1;
+		this.profile = profile || {};
 
 		if (!pad) {
 			this.reset();
 		} else {
 			this.update();
 		}
+
+		this.updateHints();
 	}
 
 	reset() {

@@ -32,8 +32,11 @@ async function attachLayout(type = 'xbox', target) {
 	 * @type {HTMLSelectElement}
 	 */
 	const select = document.querySelector('#processed-joy');
-	const rendere = await attachLayout('xbox', document.querySelector('#joy'));
-	const profiles = await new Promise( res => chrome.storage.sync.get(res));
+	const render = await attachLayout('xbox', document.querySelector('#joy'));
+	const config = await new Promise( res => chrome.storage.sync.get(res));
+	const profiles = config?.profiles.global;
+
+	console.log(profiles);
 
 	let lastSelectedId = localStorage.getItem('last_used_joy') || '';
 
@@ -64,7 +67,7 @@ async function attachLayout(type = 'xbox', target) {
 			localStorage.setItem('last_used_joy', lastSelectedId);
 		}
 
-		rendere.bindPad(pad);
+		render.bindPad(pad, profiles[lastSelectedId] || profiles.any);
 		console.log("Render Pad:", pad);
 	}
 

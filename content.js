@@ -88,7 +88,8 @@ const DEFAULT_PROFILE = {
 			which: 40,
 		},
 	},
-	axesThreshold: 0.7
+	axesThreshold: 0.5,
+	disabled: false
 }
 
 class JoyServer {
@@ -116,7 +117,7 @@ class JoyServer {
 	updatePad(pad, _time = 0) {
 		const padProfile = this.profiles[pad.id] || this.profiles['any'];
 
-		if (!padProfile) {
+		if (!padProfile || padProfile.disabled) {
 			return;
 		}
 
@@ -342,13 +343,21 @@ class JoyServer {
 }
   
 (async () =>  {
-	const config = await new Promise( res => chrome.storage.sync.get(res));
-	const profiles = config.profiles || {
-		global: {
-			any: DEFAULT_PROFILE
-		}
-	};
+	let config = await new Promise(res => chrome.storage.sync.get(res));
 
+	if (!config || !config.profiles) {
+		config = {
+			profiles: {
+				global: {
+					any: DEFAULT_PROFILE
+				}
+			}
+		}
+
+		chrome.storage.sync.set(config);
+	}
+
+	const profiles = config.profiles
 	const server = new JoyServer(profiles['global']);
 
 	window.onunload = () => {
@@ -356,11 +365,11 @@ class JoyServer {
 	}
 
 	chrome.storage.onChanged.addListener((data, type) => {
-		if (type !== 'sync' && data['profiles']) {
+		if (type !== 'sync' && !data['config']) {
 			return;
 		}
 
-		server.changeProfile(data['profiles'].newValue);
+		server.changeProfile(data['config'].newValue['profiles']);
 	});
 
 	server.start();
